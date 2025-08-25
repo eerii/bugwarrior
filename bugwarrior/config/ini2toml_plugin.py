@@ -63,7 +63,7 @@ CONFIGLIST = {
     'trello': ['include_boards', 'include_lists', 'exclude_lists'],
     'bts': ['packages', 'ignore_pkg', 'ignore_src'],
     'deck': ['include_board_ids', 'exclude_board_ids'],
-    'bugzilla': ['open_statuses'],
+    'bugzilla': ['open_statuses, done_statuses'],
     'pagure': ['include_repos', 'exclude_repos'],
 }
 

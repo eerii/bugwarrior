@@ -52,6 +52,10 @@ class BugzillaConfig(config.ServiceConfig):
         'FAILS_QA',
         'PASSES_QA',
     ])
+    done_statuses: config.ConfigList = config.ConfigList([
+        'RESOLVED',
+        'VERIFIED',
+    ])
     include_needinfos: bool = False
     query_url: typing.Optional[pydantic.v1.AnyUrl]
     force_rest: bool = False
@@ -125,11 +129,18 @@ class BugzillaIssue(Issue):
             self.PRODUCT: self.record['product'],
             self.COMPONENT: self.record['component'],
         }
-        if self.extra.get('needinfo_since', None) is not None:
-            task[self.NEEDINFO] = self.parse_date(self.extra.get('needinfo_since'))
 
-        if self.extra.get('assigned_on', None) is not None:
-            task[self.ASSIGNED_ON] = self.parse_date(self.extra.get('assigned_on'))
+        if needinfo_since := self.extra.get('needinfo_since'):
+            task[self.NEEDINFO] = self.parse_date(needinfo_since)
+
+        if assigned_on := self.extra.get('assigned_on'):
+            task[self.ASSIGNED_ON] = self.parse_date(assigned_on)
+
+        if creation_time := self.record.get('creation_time'):
+            task['entry'] = self.parse_date(_ensure_datetime(creation_time).isoformat())
+
+        if resolved_on := self.extra.get('resolved_on'):
+            task['end'] = self.parse_date(resolved_on)
 
         return task
 
@@ -156,6 +167,7 @@ class BugzillaService(Service):
         'flags',
         'longdescs',
         'assigned_to',
+        'creation_time',
     ]
 
     def __init__(self, *args, **kw):
@@ -310,21 +322,26 @@ class BugzillaService(Service):
                 extra['needinfo_since'] = _ensure_datetime(last_mod).isoformat()
 
             if issue['status'] == 'ASSIGNED':
-                extra['assigned_on'] = self._get_assigned_date(issue)
+                extra['assigned_on'] = self._get_date(issue, "ASSIGNED")
             else:
                 extra['assigned_on'] = None
+
+            if issue['status'] in self.config.done_statuses:
+                extra['resolved_on'] = self._get_date(issue, issue['status'])
+            elif issue['status'] == 'REOPENED':
+                extra['resolved_on'] = None
 
             issue_obj.extra.update(extra)
             yield issue_obj
 
-    def _get_assigned_date(self, issue):
+    def _get_date(self, issue, status):
         bug = self.bz.getbug(issue['id'])
         history = bug.get_history_raw()['bugs'][0]['history']
 
         # this is already in chronological order, so the last change is the one we want
         for h in reversed(history):
             for change in h['changes']:
-                if change['field_name'] == 'status' and change['added'] == 'ASSIGNED':
+                if change['field_name'] == 'status' and change['added'] == status:
                     return _ensure_datetime(h['when']).isoformat()
 
 

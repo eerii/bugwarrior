@@ -1,3 +1,4 @@
+import datetime
 import logging
 import typing
 
@@ -63,7 +64,7 @@ class PhabricatorIssue(Issue):
     }
 
     def to_taskwarrior(self):
-        return {
+        task = {
             'project': self.extra['project'],
             'priority': self.priority,
             'annotations': self.extra.get('annotations', []),
@@ -73,6 +74,12 @@ class PhabricatorIssue(Issue):
             self.TITLE: self.record['title'],
             self.OBJECT_NAME: self.record['uri'].split('/')[-1],
         }
+
+        if timestamp := self.record['dateCreated']:
+            entry = datetime.datetime.fromtimestamp(int(timestamp), tz=datetime.timezone.utc)
+            task['entry'] = entry.isoformat()
+
+        return task
 
     def get_default_description(self):
         return self.build_default_description(
