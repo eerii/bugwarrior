@@ -66,7 +66,7 @@ class GerritIssue(Issue):
     UNIQUE_KEY = (URL, )
 
     def to_taskwarrior(self):
-        return {
+        task = {
             'project': self.record['project'],
             'annotations': self.extra['annotations'],
             self.URL: self.extra['url'],
@@ -80,6 +80,14 @@ class GerritIssue(Issue):
             self.STATUS: self.record.get('status', ''),
             self.WORK_IN_PROGRESS: int(self.record.get('work_in_progress', 0)),
         }
+
+        if created := self.record.get('created'):
+            task['entry'] = self.parse_date(created)
+
+        if submitted := self.record.get('submitted'):
+            task['end'] = self.parse_date(submitted)
+
+        return task
 
     def get_default_description(self):
         return self.build_default_description(
